@@ -1,5 +1,7 @@
 /* ============================================
-esp-idf library to support pressure and temperature sensor BMP280.
+MIT License
+
+Copyright (c) 2022 PiotrTopa
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -7,15 +9,17 @@ in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ===============================================
 */
 
@@ -25,29 +29,22 @@ THE SOFTWARE.
 static const char *TAG = "BMP280";
 
 /**
- * Default constructor, uses default I2C device address.
- * @see BMP280_DEFAULT_ADDRESS
- */
-BMP280::BMP280()
-{
-    devAddr = BMP280_I2C_ADDR_DEFAULT;
-}
-
-/**
  * Specific address constructor.
  * @param address Specific device address
  * @see BMP280_DEFAULT_ADDRESS
  */
-BMP280::BMP280(uint8_t address)
+BMP280::BMP280()
 {
-    devAddr = address;
 }
 
 /**
  * Initialize device
  */
-void BMP280::initialize()
+void BMP280::initialize(I2Cdev *i2cBusInterface, uint8_t deviceAddress)
 {
+    i2cBus = i2cBusInterface;
+    devAddr = deviceAddress;
+
     ESP_LOGI(TAG, "Device initialization");
     softReset();
     readDeviceId();
@@ -60,7 +57,8 @@ void BMP280::initialize()
  */
 void BMP280::readDeviceId()
 {
-    I2Cdev::readByte(devAddr, BMP280_CHIP_ID_ADDR, &devId);
+    i2cBus->readByte(devAddr, BMP280_CHIP_ID_ADDR, &devId);
+    printf("DEVICE ID READF: %d\n\n\n", devId);
 }
 
 /**
@@ -78,7 +76,7 @@ uint8_t BMP280::getDeviceId()
 bool BMP280::softReset()
 {
     ESP_LOGI(TAG, "Device soft reset");
-    int8_t result = I2Cdev::writeByte(devAddr, BMP280_SOFT_RESET_ADDR, BMP280_SOFT_RESET_CMD);
+    int8_t result = i2cBus->writeByte(devAddr, BMP280_SOFT_RESET_ADDR, BMP280_SOFT_RESET_CMD);
     /* As per the datasheet, startup time is 2 ms. */
     vTaskDelay(2 / portTICK_PERIOD_MS);
     return result;
@@ -93,7 +91,9 @@ bool BMP280::readCalibrationParameters()
 
     ESP_LOGI(TAG, "Device calibration params reading");
 
-    int8_t rslt = I2Cdev::readBytes(devAddr, BMP280_DIG_T1_LSB_ADDR, BMP280_CALIB_DATA_SIZE, temp);
+    int8_t rslt = i2cBus->readBytes(devAddr, BMP280_DIG_T1_LSB_ADDR, BMP280_CALIB_DATA_SIZE, temp);
+    ESP_LOGI(TAG, "Device calibration data fetche %d.", rslt);
+
     if (rslt == BMP280_CALIB_DATA_SIZE)
     {
         calibrationParams.digT1 =
@@ -144,7 +144,7 @@ void BMP280::setDefaultConfiguration()
 bool BMP280::readConfiguration()
 {
     uint8_t temp[2] = {0, 0};
-    int8_t length = I2Cdev::readBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
+    int8_t length = i2cBus->readBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
 
     if (length == 2)
     {
@@ -163,7 +163,7 @@ bool BMP280::readConfiguration()
 void BMP280::writeConfiguration()
 {
     uint8_t temp[2] = {0, 0};
-    int8_t length = I2Cdev::readBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
+    int8_t length = i2cBus->readBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
     if (length == 2)
     {
         softReset();
@@ -172,12 +172,12 @@ void BMP280::writeConfiguration()
         temp[1] = BMP280_SET_BITS(temp[1], BMP280_STANDBY_DURN_MASK, BMP280_STANDBY_DURN_POS, configuration.outputDataRata);
         temp[1] = BMP280_SET_BITS(temp[1], BMP280_FILTER_MASK, BMP280_FILTER_POS, configuration.filter);
         temp[1] = BMP280_SET_BITS(temp[1], BMP280_SPI3_ENABLE_MASK, 0x00, configuration.spi3wEnabled);
-        I2Cdev::writeBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
+        i2cBus->writeBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
 
         if (powerMode != BMP280_SLEEP_MODE)
         {
             temp[0] = BMP280_SET_BITS(temp[0], BMP280_POWER_MODE_MASK, 0x00, powerMode);
-            I2Cdev::writeBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 1, temp);
+            i2cBus->writeBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 1, temp);
         }
     }
 }
@@ -186,7 +186,7 @@ void BMP280::writeConfiguration()
 bool BMP280::readRawData()
 {
     uint8_t temp[6] = {0};
-    int8_t length = I2Cdev::readBytes(devAddr, BMP280_PRES_MSB_ADDR, 6, temp);
+    int8_t length = i2cBus->readBytes(devAddr, BMP280_PRES_MSB_ADDR, 6, temp);
     if (length == 6)
     {
         rawData.rawPressure =
@@ -280,7 +280,8 @@ double BMP280::getPressureDouble()
     var2 = var2 + var1 * ((double)calibrationParams.digP5) * 2.0;
     var2 = (var2 / 4.0) + (((double)calibrationParams.digP4) * 65536.0);
     var1 = (((double)calibrationParams.digP3) * var1 * var1 / 524288.0 +
-            ((double)calibrationParams.digP2) * var1) / 524288.0;
+            ((double)calibrationParams.digP2) * var1) /
+           524288.0;
     var1 = (1.0 + var1 / 32768.0) * ((double)calibrationParams.digP1);
 
     pressure = 1048576.0 - (double)rawPress;

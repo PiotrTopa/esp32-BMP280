@@ -1,5 +1,7 @@
 /* ============================================
-esp-idf library to support pressure and temperature sensor BMP280.
+MIT License
+
+Copyright (c) 2022 PiotrTopa
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -7,15 +9,17 @@ in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ===============================================
 */
 
@@ -99,62 +103,62 @@ THE SOFTWARE.
 #define BMP280_TEMP_XLSB_ADDR UINT8_C(0xFC)
 
 /* Configuration bits masks and positions */
-#define BMP280_STATUS_IM_UPDATE_POS          UINT8_C(0)
-#define BMP280_STATUS_IM_UPDATE_MASK         UINT8_C(0x01)
-#define BMP280_STATUS_MEAS_POS               UINT8_C(3)
-#define BMP280_STATUS_MEAS_MASK              UINT8_C(0x08)
-#define BMP280_OS_TEMP_POS                   UINT8_C(5)
-#define BMP280_OS_TEMP_MASK                  UINT8_C(0xE0)
-#define BMP280_OS_PRES_POS                   UINT8_C(2)
-#define BMP280_OS_PRES_MASK                  UINT8_C(0x1C)
-#define BMP280_POWER_MODE_POS                UINT8_C(0)
-#define BMP280_POWER_MODE_MASK               UINT8_C(0x03)
-#define BMP280_STANDBY_DURN_POS              UINT8_C(5)
-#define BMP280_STANDBY_DURN_MASK             UINT8_C(0xE0)
-#define BMP280_FILTER_POS                    UINT8_C(2)
-#define BMP280_FILTER_MASK                   UINT8_C(0x1C)
-#define BMP280_SPI3_ENABLE_POS               UINT8_C(0)
-#define BMP280_SPI3_ENABLE_MASK              UINT8_C(0x01)
+#define BMP280_STATUS_IM_UPDATE_POS UINT8_C(0)
+#define BMP280_STATUS_IM_UPDATE_MASK UINT8_C(0x01)
+#define BMP280_STATUS_MEAS_POS UINT8_C(3)
+#define BMP280_STATUS_MEAS_MASK UINT8_C(0x08)
+#define BMP280_OS_TEMP_POS UINT8_C(5)
+#define BMP280_OS_TEMP_MASK UINT8_C(0xE0)
+#define BMP280_OS_PRES_POS UINT8_C(2)
+#define BMP280_OS_PRES_MASK UINT8_C(0x1C)
+#define BMP280_POWER_MODE_POS UINT8_C(0)
+#define BMP280_POWER_MODE_MASK UINT8_C(0x03)
+#define BMP280_STANDBY_DURN_POS UINT8_C(5)
+#define BMP280_STANDBY_DURN_MASK UINT8_C(0xE0)
+#define BMP280_FILTER_POS UINT8_C(2)
+#define BMP280_FILTER_MASK UINT8_C(0x1C)
+#define BMP280_SPI3_ENABLE_POS UINT8_C(0)
+#define BMP280_SPI3_ENABLE_MASK UINT8_C(0x01)
 
 /* Configuration: Output Data Rata */
-#define BMP280_ODR_0_5_MS                    UINT8_C(0x00)
-#define BMP280_ODR_62_5_MS                   UINT8_C(0x01)
-#define BMP280_ODR_125_MS                    UINT8_C(0x02)
-#define BMP280_ODR_250_MS                    UINT8_C(0x03)
-#define BMP280_ODR_500_MS                    UINT8_C(0x04)
-#define BMP280_ODR_1000_MS                   UINT8_C(0x05)
-#define BMP280_ODR_2000_MS                   UINT8_C(0x06)
-#define BMP280_ODR_4000_MS                   UINT8_C(0x07)
+#define BMP280_ODR_0_5_MS UINT8_C(0x00)
+#define BMP280_ODR_62_5_MS UINT8_C(0x01)
+#define BMP280_ODR_125_MS UINT8_C(0x02)
+#define BMP280_ODR_250_MS UINT8_C(0x03)
+#define BMP280_ODR_500_MS UINT8_C(0x04)
+#define BMP280_ODR_1000_MS UINT8_C(0x05)
+#define BMP280_ODR_2000_MS UINT8_C(0x06)
+#define BMP280_ODR_4000_MS UINT8_C(0x07)
 
 /* Configuration: oversampling */
-#define BMP280_OS_NONE                       UINT8_C(0x00)
-#define BMP280_OS_1X                         UINT8_C(0x01)
-#define BMP280_OS_2X                         UINT8_C(0x02)
-#define BMP280_OS_4X                         UINT8_C(0x03)
-#define BMP280_OS_8X                         UINT8_C(0x04)
-#define BMP280_OS_16X                        UINT8_C(0x05)
+#define BMP280_OS_NONE UINT8_C(0x00)
+#define BMP280_OS_1X UINT8_C(0x01)
+#define BMP280_OS_2X UINT8_C(0x02)
+#define BMP280_OS_4X UINT8_C(0x03)
+#define BMP280_OS_8X UINT8_C(0x04)
+#define BMP280_OS_16X UINT8_C(0x05)
 
 /* Configuration: Filter */
-#define BMP280_FILTER_OFF                    UINT8_C(0x00)
-#define BMP280_FILTER_COEFF_2                UINT8_C(0x01)
-#define BMP280_FILTER_COEFF_4                UINT8_C(0x02)
-#define BMP280_FILTER_COEFF_8                UINT8_C(0x03)
-#define BMP280_FILTER_COEFF_16               UINT8_C(0x04)
+#define BMP280_FILTER_OFF UINT8_C(0x00)
+#define BMP280_FILTER_COEFF_2 UINT8_C(0x01)
+#define BMP280_FILTER_COEFF_4 UINT8_C(0x02)
+#define BMP280_FILTER_COEFF_8 UINT8_C(0x03)
+#define BMP280_FILTER_COEFF_16 UINT8_C(0x04)
 
 /* Configuration: SPI 3 wire */
-#define BMP280_SPI3_WIRE_ENABLE              UINT8_C(1)
-#define BMP280_SPI3_WIRE_DISABLE             UINT8_C(0)
+#define BMP280_SPI3_WIRE_ENABLE UINT8_C(1)
+#define BMP280_SPI3_WIRE_DISABLE UINT8_C(0)
 
 /* Configuration: Power modes */
-#define BMP280_SLEEP_MODE                    UINT8_C(0x00)
-#define BMP280_FORCED_MODE                   UINT8_C(0x01)
-#define BMP280_NORMAL_MODE                   UINT8_C(0x03)
+#define BMP280_SLEEP_MODE UINT8_C(0x00)
+#define BMP280_FORCED_MODE UINT8_C(0x01)
+#define BMP280_NORMAL_MODE UINT8_C(0x03)
 
 #define BMP280_SOFT_RESET_CMD UINT8_C(0xB6)
 #define BMP280_CALIB_DATA_SIZE UINT8_C(24)
 
-#define BMP280_GET_BITS(bitmask, bitpos, x)             ((x & bitmask) >> bitpos)
-#define BMP280_SET_BITS(regvar, bitmask, bitpos, val)   ((regvar & ~bitmask) | ((val << bitpos) & bitmask))
+#define BMP280_GET_BITS(bitmask, bitpos, x) ((x & bitmask) >> bitpos)
+#define BMP280_SET_BITS(regvar, bitmask, bitpos, val) ((regvar & ~bitmask) | ((val << bitpos) & bitmask))
 
 class BMP280
 {
@@ -198,9 +202,8 @@ class BMP280
 
 public:
         BMP280();
-        BMP280(uint8_t address);
 
-        void initialize();
+        void initialize(I2Cdev *i2cBus, uint8_t deviceAddress);
         bool testConnection();
 
         CalibrationParams calibrationParams;
@@ -219,7 +222,9 @@ public:
         int32_t getPressure();
         double getPressureDouble();
         uint8_t getDeviceId();
+
 private:
+        I2Cdev *i2cBus;
         uint8_t devAddr;
         uint8_t devId;
         bool readCalibrationParameters();
