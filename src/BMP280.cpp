@@ -1,9 +1,6 @@
 /* ============================================
 esp-idf library to support pressure and temperature sensor BMP280.
 
-Based on BMP085 work of Jeff Rowberg.
-https://github.com/jrowberg/i2cdevlib/tree/master/Arduino/BMP085
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -25,12 +22,15 @@ THE SOFTWARE.
 #include "BMP280.h"
 #include <math.h>
 
+static const char *TAG = "BMP280";
+
 /**
  * Default constructor, uses default I2C device address.
  * @see BMP280_DEFAULT_ADDRESS
  */
-BMP280::BMP280() {
-    devAddr = BMP280_DEFAULT_ADDRESS;
+BMP280::BMP280()
+{
+    devAddr = BMP280_I2C_ADDR_DEFAULT;
 }
 
 /**
@@ -38,234 +38,261 @@ BMP280::BMP280() {
  * @param address Specific device address
  * @see BMP280_DEFAULT_ADDRESS
  */
-BMP280::BMP280(uint8_t address) {
+BMP280::BMP280(uint8_t address)
+{
     devAddr = address;
 }
 
 /**
- * Prepare device for normal usage.
+ * Initialize device
  */
-void BMP280::initialize() {
-    // load sensor's calibration constants
-    loadCalibration();
+void BMP280::initialize()
+{
+    ESP_LOGI(TAG, "Device initialization");
+    softReset();
+    readDeviceId();
+    readCalibrationParameters();
 }
 
 /**
- * Verify the device is connected and available.
+ * Read deviceId.
+ * @see getDeviceId()
  */
-bool BMP280::testConnection() {
-    // test for a response, though this is very basic
-    return I2Cdev::readByte(devAddr, BMP280_RA_AC1_H, buffer) == 1;
+void BMP280::readDeviceId()
+{
+    I2Cdev::readByte(devAddr, BMP280_CHIP_ID_ADDR, &devId);
 }
 
-/* calibration register methods */
-
-void BMP280::loadCalibration() {
-    uint8_t buf2[22];
-    I2Cdev::readBytes(devAddr, BMP280_RA_AC1_H, 22, buf2);
-    ac1 = ((int16_t)buf2[0] << 8) + buf2[1];
-    ac2 = ((int16_t)buf2[2] << 8) + buf2[3];
-    ac3 = ((int16_t)buf2[4] << 8) + buf2[5];
-    ac4 = ((uint16_t)buf2[6] << 8) + buf2[7];
-    ac5 = ((uint16_t)buf2[8] << 8) + buf2[9];
-    ac6 = ((uint16_t)buf2[10] << 8) + buf2[11];
-    b1 = ((int16_t)buf2[12] << 8) + buf2[13];
-    b2 = ((int16_t)buf2[14] << 8) + buf2[15];
-    mb = ((int16_t)buf2[16] << 8) + buf2[17];
-    mc = ((int16_t)buf2[18] << 8) + buf2[19];
-    md = ((int16_t)buf2[20] << 8) + buf2[21];
-    calibrationLoaded = true;
+/**
+ * Returns stored deviceId.
+ * @return uint8_t deviceId
+ */
+uint8_t BMP280::getDeviceId()
+{
+    return devId;
 }
 
-#ifdef BMP280_INCLUDE_INDIVIDUAL_CALIBRATION_ACCESS
-    int16_t BMP280::getAC1() {
-        if (calibrationLoaded) return ac1;
-        I2Cdev::readBytes(devAddr, BMP280_RA_AC1_H, 2, buffer);
-        return ((int16_t)buffer[1] << 8) + buffer[0];
+/**
+ * Soft reset of the sensor.
+ */
+bool BMP280::softReset()
+{
+    ESP_LOGI(TAG, "Device soft reset");
+    int8_t result = I2Cdev::writeByte(devAddr, BMP280_SOFT_RESET_ADDR, BMP280_SOFT_RESET_CMD);
+    /* As per the datasheet, startup time is 2 ms. */
+    vTaskDelay(2 / portTICK_PERIOD_MS);
+    return result;
+}
+
+/**
+ * Read calibration parameters.
+ */
+bool BMP280::readCalibrationParameters()
+{
+    uint8_t temp[BMP280_CALIB_DATA_SIZE] = {0};
+
+    ESP_LOGI(TAG, "Device calibration params reading");
+
+    int8_t rslt = I2Cdev::readBytes(devAddr, BMP280_DIG_T1_LSB_ADDR, BMP280_CALIB_DATA_SIZE, temp);
+    if (rslt == BMP280_CALIB_DATA_SIZE)
+    {
+        calibrationParams.digT1 =
+            (uint16_t)(((uint16_t)temp[BMP280_DIG_T1_MSB_POS] << 8) | ((uint16_t)temp[BMP280_DIG_T1_LSB_POS]));
+        calibrationParams.digT2 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_T2_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_T2_LSB_POS]));
+        calibrationParams.digT3 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_T3_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_T3_LSB_POS]));
+        calibrationParams.digP1 =
+            (uint16_t)(((uint16_t)temp[BMP280_DIG_P1_MSB_POS] << 8) | ((uint16_t)temp[BMP280_DIG_P1_LSB_POS]));
+        calibrationParams.digP2 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_P2_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_P2_LSB_POS]));
+        calibrationParams.digP3 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_P3_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_P3_LSB_POS]));
+        calibrationParams.digP4 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_P4_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_P4_LSB_POS]));
+        calibrationParams.digP5 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_P5_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_P5_LSB_POS]));
+        calibrationParams.digP6 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_P6_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_P6_LSB_POS]));
+        calibrationParams.digP7 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_P7_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_P7_LSB_POS]));
+        calibrationParams.digP8 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_P8_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_P8_LSB_POS]));
+        calibrationParams.digP9 =
+            (int16_t)(((int16_t)temp[BMP280_DIG_P9_MSB_POS] << 8) | ((int16_t)temp[BMP280_DIG_P9_LSB_POS]));
+
+        ESP_LOGI(TAG, "Device calibration params read successfully");
     }
 
-    int16_t BMP280::getAC2() {
-        if (calibrationLoaded) return ac2;
-        I2Cdev::readBytes(devAddr, BMP280_RA_AC2_H, 2, buffer);
-        return ((int16_t)buffer[1] << 8) + buffer[0];
-    }
+    setDefaultConfiguration();
 
-    int16_t BMP280::getAC3() {
-        if (calibrationLoaded) return ac3;
-        I2Cdev::readBytes(devAddr, BMP280_RA_AC3_H, 2, buffer);
-        return ((int16_t)buffer[1] << 8) + buffer[0];
-    }
-
-    uint16_t BMP280::getAC4() {
-        if (calibrationLoaded) return ac4;
-        I2Cdev::readBytes(devAddr, BMP280_RA_AC4_H, 2, buffer);
-        return ((uint16_t)buffer[1] << 8) + buffer[0];
-    }
-
-    uint16_t BMP280::getAC5() {
-        if (calibrationLoaded) return ac5;
-        I2Cdev::readBytes(devAddr, BMP280_RA_AC5_H, 2, buffer);
-        return ((uint16_t)buffer[1] << 8) + buffer[0];
-    }
-
-    uint16_t BMP280::getAC6() {
-        if (calibrationLoaded) return ac6;
-        I2Cdev::readBytes(devAddr, BMP280_RA_AC6_H, 2, buffer);
-        return ((uint16_t)buffer[1] << 8) + buffer[0];
-    }
-
-    int16_t BMP280::getB1() {
-        if (calibrationLoaded) return b1;
-        I2Cdev::readBytes(devAddr, BMP280_RA_B1_H, 2, buffer);
-        return ((int16_t)buffer[1] << 8) + buffer[0];
-    }
-
-    int16_t BMP280::getB2() {
-        if (calibrationLoaded) return b2;
-        I2Cdev::readBytes(devAddr, BMP280_RA_B2_H, 2, buffer);
-        return ((int16_t)buffer[1] << 8) + buffer[0];
-    }
-
-    int16_t BMP280::getMB() {
-        if (calibrationLoaded) return mb;
-        I2Cdev::readBytes(devAddr, BMP280_RA_MB_H, 2, buffer);
-        return ((int16_t)buffer[1] << 8) + buffer[0];
-    }
-
-    int16_t BMP280::getMC() {
-        if (calibrationLoaded) return mc;
-        I2Cdev::readBytes(devAddr, BMP280_RA_MC_H, 2, buffer);
-        return ((int16_t)buffer[1] << 8) + buffer[0];
-    }
-
-    int16_t BMP280::getMD() {
-        if (calibrationLoaded) return md;
-        I2Cdev::readBytes(devAddr, BMP280_RA_MD_H, 2, buffer);
-        return ((int16_t)buffer[1] << 8) + buffer[0];
-    }
-#endif
-
-/* control register methods */
-
-uint8_t BMP280::getControl() {
-    I2Cdev::readByte(devAddr, BMP280_RA_CONTROL, buffer);
-    return buffer[0];
-}
-void BMP280::setControl(uint8_t value) {
-    I2Cdev::writeByte(devAddr, BMP280_RA_CONTROL, value);
-    measureMode = value;
+    return rslt;
 }
 
-/* measurement register methods */
-
-uint16_t BMP280::getMeasurement2() {
-    // wait for end of conversion
-    while(getControl() & 0x20);
-    I2Cdev::readBytes(devAddr, BMP280_RA_MSB, 2, buffer);
-    return ((uint16_t)buffer[0] << 8) + buffer[1];
-}
-uint32_t BMP280::getMeasurement3() {
-    // wait for end of conversion
-    while(getControl() & 0x20);
-    I2Cdev::readBytes(devAddr, BMP280_RA_MSB, 3, buffer);
-    return ((uint32_t)buffer[0] << 16) + ((uint16_t)buffer[1] << 8) + buffer[2];
-}
-uint8_t BMP280::getMeasureDelayMilliseconds(uint8_t mode) {
-    if (mode == 0) mode = measureMode;
-    if (measureMode == 0x2E) return 5;
-    else if (measureMode == 0x34) return 5;
-    else if (measureMode == 0x74) return 8;
-    else if (measureMode == 0xB4) return 14;
-    else if (measureMode == 0xF4) return 26;
-    return 0; // invalid mode
-}
-uint16_t BMP280::getMeasureDelayMicroseconds(uint8_t mode) {
-    if (mode == 0) mode = measureMode;
-    if (measureMode == 0x2E) return 4500;
-    else if (measureMode == 0x34) return 4500;
-    else if (measureMode == 0x74) return 7500;
-    else if (measureMode == 0xB4) return 13500;
-    else if (measureMode == 0xF4) return 25500;
-    return 0; // invalid mode
+/* Set defaults conifguration parameters internally */
+void BMP280::setDefaultConfiguration()
+{
+    configuration.filter = BMP280_FILTER_OFF;
+    configuration.osPressure = BMP280_OS_NONE;
+    configuration.osTemperature = BMP280_OS_NONE;
+    configuration.outputDataRata = BMP280_ODR_0_5_MS;
+    configuration.spi3wEnabled = BMP280_SPI3_WIRE_DISABLE;
+    powerMode = BMP280_SLEEP_MODE;
 }
 
-uint16_t BMP280::getRawTemperature() {
-    if (measureMode == 0x2E) return getMeasurement2();
-    return 0; // wrong measurement mode for temperature request
-}
+/* Read conifguration from sensor */
+bool BMP280::readConfiguration()
+{
+    uint8_t temp[2] = {0, 0};
+    int8_t length = I2Cdev::readBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
 
-float BMP280::getTemperatureC() {
-    /*
-    Datasheet formula:
-        UT = raw temperature
-        X1 = (UT - AC6) * AC5 / 2^15
-        X2 = MC * 2^11 / (X1 + MD)
-        B5 = X1 + X2
-        T = (B5 + 8) / 2^4
-    */
-    int32_t ut = getRawTemperature();
-    if(ut == 0) return NAN;
-    int32_t x1 = ((ut - (int32_t)ac6) * (int32_t)ac5) >> 15;
-    int32_t x2 = ((int32_t)mc << 11) / (x1 + md);
-    b5 = x1 + x2;
-    return (float)((b5 + 8) >> 4) / 10.0f;
-}
-
-float BMP280::getTemperatureF() {
-    return getTemperatureC() * 9.0f / 5.0f + 32;
-}
-
-uint32_t BMP280::getRawPressure() {
-    if (measureMode & 0x34) return getMeasurement3() >> (8 - ((measureMode & 0xC0) >> 6));
-    return 0; // wrong measurement mode for pressure request
-}
-
-int32_t BMP280::getPressure() {
-    /*
-    Datasheet forumla
-        UP = raw pressure
-        B6 = B5 - 4000
-        X1 = (B2 * (B6 * B6 / 2^12)) / 2^11
-        X2 = AC2 * B6 / 2^11
-        X3 = X1 + X2
-        B3 = ((AC1 * 4 + X3) << oss + 2) / 4
-        X1 = AC3 * B6 / 2^13
-        X2 = (B1 * (B6 * B6 / 2^12)) / 2^16
-        X3 = ((X1 + X2) + 2) / 2^2
-        B4 = AC4 * (unsigned long)(X3 + 32768) / 2^15
-        B7 = ((unsigned long)UP - B3) * (50000 >> oss)
-        if (B7 < 0x80000000) { p = (B7 * 2) / B4 }
-        else { p = (B7 / B4) * 2 }
-        X1 = (p / 2^8) * (p / 2^8)
-        X1 = (X1 * 3038) / 2^16
-        X2 = (-7357 * p) / 2^16
-        p = p + (X1 + X2 + 3791) / 2^4
-    */
-    uint32_t up = getRawPressure();
-    if(up == 0) return 0;
-    uint8_t oss = (measureMode & 0xC0) >> 6;
-    int32_t p;
-    int32_t b6 = b5 - 4000;
-    int32_t x1 = ((int32_t)b2 * ((b6 * b6) >> 12)) >> 11;
-    int32_t x2 = ((int32_t)ac2 * b6) >> 11;
-    int32_t x3 = x1 + x2;
-    int32_t b3 = ((((int32_t)ac1 * 4 + x3) << oss) + 2) >> 2;
-    x1 = ((int32_t)ac3 * b6) >> 13;
-    x2 = ((int32_t)b1 * ((b6 * b6) >> 12)) >> 16;
-    x3 = ((x1 + x2) + 2) >> 2;
-    uint32_t b4 = ((uint32_t)ac4 * (uint32_t)(x3 + 32768)) >> 15;
-    uint32_t b7 = ((uint32_t)up - b3) * (uint32_t)(50000UL >> oss);
-    if (b7 < 0x80000000) {
-        p = (b7 << 1) / b4;
-    } else {
-        p = (b7 / b4) << 1;
+    if (length == 2)
+    {
+        configuration.osTemperature = BMP280_GET_BITS(BMP280_OS_TEMP_MASK, BMP280_OS_TEMP_POS, temp[0]);
+        configuration.osPressure = BMP280_GET_BITS(BMP280_OS_PRES_MASK, BMP280_OS_PRES_POS, temp[0]);
+        configuration.outputDataRata = BMP280_GET_BITS(BMP280_STANDBY_DURN_MASK, BMP280_STANDBY_DURN_POS, temp[1]);
+        configuration.filter = BMP280_GET_BITS(BMP280_FILTER_MASK, BMP280_FILTER_POS, temp[1]);
+        configuration.spi3wEnabled = BMP280_GET_BITS(BMP280_SPI3_ENABLE_MASK, 0x00, temp[1]);
+        powerMode = BMP280_GET_BITS(BMP280_POWER_MODE_MASK, 0x00, temp[0]);
+        return true;
     }
-    x1 = (p >> 8) * (p >> 8);
-    x1 = (x1 * 3038) >> 16;
-    x2 = (-7357 * p) >> 16;
-    return p + ((x1 + x2 + (int32_t)3791) >> 4);
+    return false;
 }
 
-float BMP280::getAltitude(float pressure, float seaLevelPressure) {
-    return 44330 * (1.0 - pow(pressure / seaLevelPressure, 0.1903));
+/* Write conifguration to sensor */
+void BMP280::writeConfiguration()
+{
+    uint8_t temp[2] = {0, 0};
+    int8_t length = I2Cdev::readBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
+    if (length == 2)
+    {
+        softReset();
+        temp[0] = BMP280_SET_BITS(temp[0], BMP280_OS_TEMP_MASK, BMP280_OS_TEMP_POS, configuration.osTemperature);
+        temp[0] = BMP280_SET_BITS(temp[0], BMP280_OS_PRES_MASK, BMP280_OS_PRES_POS, configuration.osPressure);
+        temp[1] = BMP280_SET_BITS(temp[1], BMP280_STANDBY_DURN_MASK, BMP280_STANDBY_DURN_POS, configuration.outputDataRata);
+        temp[1] = BMP280_SET_BITS(temp[1], BMP280_FILTER_MASK, BMP280_FILTER_POS, configuration.filter);
+        temp[1] = BMP280_SET_BITS(temp[1], BMP280_SPI3_ENABLE_MASK, 0x00, configuration.spi3wEnabled);
+        I2Cdev::writeBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 2, temp);
+
+        if (powerMode != BMP280_SLEEP_MODE)
+        {
+            temp[0] = BMP280_SET_BITS(temp[0], BMP280_POWER_MODE_MASK, 0x00, powerMode);
+            I2Cdev::writeBytes(devAddr, BMP280_CTRL_MEAS_ADDR, 1, temp);
+        }
+    }
+}
+
+/* Read raw data from sensor */
+bool BMP280::readRawData()
+{
+    uint8_t temp[6] = {0};
+    int8_t length = I2Cdev::readBytes(devAddr, BMP280_PRES_MSB_ADDR, 6, temp);
+    if (length == 6)
+    {
+        rawData.rawPressure =
+            (int32_t)((((uint32_t)(temp[0])) << 12) | (((uint32_t)(temp[1])) << 4) | ((uint32_t)temp[2] >> 4));
+        rawData.rawTemperature =
+            (int32_t)((((int32_t)(temp[3])) << 12) | (((int32_t)(temp[4])) << 4) | (((int32_t)(temp[5])) >> 4));
+        return true;
+    }
+    return false;
+}
+
+/* Calculate compensated temperature to int32 format */
+int32_t BMP280::getTemperature()
+{
+    int32_t rawTemp = rawData.rawTemperature;
+    int32_t var1, var2;
+
+    var1 =
+        ((((rawTemp / 8) - ((int32_t)calibrationParams.digT1 << 1))) * ((int32_t)calibrationParams.digT2)) /
+        2048;
+    var2 =
+        (((((rawTemp / 16) - ((int32_t)calibrationParams.digT1)) *
+           ((rawTemp / 16) - ((int32_t)calibrationParams.digT1))) /
+          4096) *
+         ((int32_t)calibrationParams.digT3)) /
+        16384;
+    calibrationParams.tFine = var1 + var2;
+    return (calibrationParams.tFine * 5 + 128) / 256;
+}
+
+/* Calculate compensated data to floating point double */
+double BMP280::getTemperatureDouble()
+{
+    int32_t rawTemp = rawData.rawTemperature;
+    double var1, var2;
+
+    var1 = (((double)rawTemp) / 16384.0 - ((double)calibrationParams.digT1) / 1024.0) *
+           ((double)calibrationParams.digT2);
+    var2 =
+        ((((double)rawTemp) / 131072.0 - ((double)calibrationParams.digT1) / 8192.0) *
+         (((double)rawTemp) / 131072.0 - ((double)calibrationParams.digT1) / 8192.0)) *
+        ((double)calibrationParams.digT3);
+
+    calibrationParams.tFine = (int32_t)(var1 + var2);
+    return ((var1 + var2) / 5120.0);
+}
+
+/* Calculate compensated pressure to int32 format */
+int32_t BMP280::getPressure()
+{
+    int32_t rawPress = rawData.rawPressure;
+    int32_t var1, var2, pressure;
+
+    var1 = (((int32_t)calibrationParams.tFine) / 2) - (int32_t)64000;
+    var2 = (((var1 / 4) * (var1 / 4)) / 2048) * ((int32_t)calibrationParams.digP6);
+    var2 = var2 + ((var1 * ((int32_t)calibrationParams.digP5)) * 2);
+    var2 = (var2 / 4) + (((int32_t)calibrationParams.digP4) * 65536);
+    var1 = (((calibrationParams.digP3 * (((var1 / 4) * (var1 / 4)) / 8192)) / 8) +
+            ((((int32_t)calibrationParams.digP2) * var1) / 2)) /
+           262144;
+    var1 = ((((32768 + var1)) * ((int32_t)calibrationParams.digP1)) / 32768);
+    pressure = (uint32_t)(((int32_t)(1048576 - rawPress) - (var2 / 4096)) * 3125);
+
+    if (var1 == 0)
+    {
+        return 0;
+    }
+
+    if (pressure < 0x80000000)
+    {
+        pressure = (pressure << 1) / ((uint32_t)var1);
+    }
+    else
+    {
+        pressure = (pressure / (uint32_t)var1) * 2;
+    }
+    var1 = (((int32_t)calibrationParams.digP9) * ((int32_t)(((pressure / 8) * (pressure / 8)) / 8192))) / 4096;
+    var2 = (((int32_t)(pressure / 4)) * ((int32_t)calibrationParams.digP8)) / 8192;
+    pressure = (uint32_t)((int32_t)pressure + ((var1 + var2 + calibrationParams.digP7) / 16));
+    return pressure;
+}
+
+/* Calculate compensated pressure to floating point double format */
+double BMP280::getPressureDouble()
+{
+    int32_t rawPress = rawData.rawPressure;
+    double var1, var2, pressure;
+
+    var1 = ((double)calibrationParams.tFine / 2.0) - 64000.0;
+    var2 = var1 * var1 * ((double)calibrationParams.digP6) / 32768.0;
+    var2 = var2 + var1 * ((double)calibrationParams.digP5) * 2.0;
+    var2 = (var2 / 4.0) + (((double)calibrationParams.digP4) * 65536.0);
+    var1 = (((double)calibrationParams.digP3) * var1 * var1 / 524288.0 +
+            ((double)calibrationParams.digP2) * var1) / 524288.0;
+    var1 = (1.0 + var1 / 32768.0) * ((double)calibrationParams.digP1);
+
+    pressure = 1048576.0 - (double)rawPress;
+    if (var1 == 0.0)
+    {
+        return 0.0;
+    }
+
+    pressure = (pressure - (var2 / 4096.0)) * 6250.0 / var1;
+    var1 = ((double)calibrationParams.digP9) * (pressure) * (pressure) / 2147483648.0;
+    var2 = (pressure) * ((double)calibrationParams.digP8) / 32768.0;
+    pressure = pressure + (var1 + var2 + ((double)calibrationParams.digP7)) / 16.0;
+
+    return pressure;
 }
