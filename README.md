@@ -1,6 +1,6 @@
 # BMP280 sensor driver for ESP32
 Sensor driver implementation based on datasheet and available sources.
-It is prepared to be runned as component with dependency on I2Cdev lib (https://github.com/PiotrTopa/esp32-I2Cdev).
+It is prepared to be runned as component with dependency on I2Cdev lib (https://github.com/PiotrTopa/esp32-I2Cdev). It is compatibile with PlatformIO esp-idf framework.
 
 # Add components to your project
 You need to add this repository along with I2Cdev to your project as ESP-IDF component.
@@ -12,3 +12,4 @@ git clone https://github.com/PiotrTopa/esp32-BMP280 BMP280
 ```
 
 # Example
+Please see code example at `/example/main.c`
