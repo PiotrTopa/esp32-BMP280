@@ -44,6 +44,7 @@ void BMP280::initialize(I2Cdev *i2cBusInterface, uint8_t deviceAddress)
 {
     i2cBus = i2cBusInterface;
     devAddr = deviceAddress;
+    devId = 0;
 
     ESP_LOGI(TAG, "Device initialization");
     softReset();
@@ -58,7 +59,6 @@ void BMP280::initialize(I2Cdev *i2cBusInterface, uint8_t deviceAddress)
 void BMP280::readDeviceId()
 {
     i2cBus->readByte(devAddr, BMP280_CHIP_ID_ADDR, &devId);
-    printf("DEVICE ID READF: %d\n\n\n", devId);
 }
 
 /**
@@ -78,6 +78,8 @@ bool BMP280::softReset()
     ESP_LOGI(TAG, "Device soft reset");
     int8_t result = i2cBus->writeByte(devAddr, BMP280_SOFT_RESET_ADDR, BMP280_SOFT_RESET_CMD);
     /* As per the datasheet, startup time is 2 ms. */
+    printf("DEVICE SoftReset result: %d\n\n", result);
+
     vTaskDelay(2 / portTICK_PERIOD_MS);
     return result;
 }
@@ -92,10 +94,11 @@ bool BMP280::readCalibrationParameters()
     ESP_LOGI(TAG, "Device calibration params reading");
 
     int8_t rslt = i2cBus->readBytes(devAddr, BMP280_DIG_T1_LSB_ADDR, BMP280_CALIB_DATA_SIZE, temp);
-    ESP_LOGI(TAG, "Device calibration data fetche %d.", rslt);
+    ESP_LOGI(TAG, "Device calibration data fetched %d.", rslt);
 
     if (rslt == BMP280_CALIB_DATA_SIZE)
     {
+        printf("CONFIG %d %d %d %d %d %d %d %d\n\n", temp[0], temp[1], temp[2], temp[3], temp[4], temp[5], temp[6], temp[7]);
         calibrationParams.digT1 =
             (uint16_t)(((uint16_t)temp[BMP280_DIG_T1_MSB_POS] << 8) | ((uint16_t)temp[BMP280_DIG_T1_LSB_POS]));
         calibrationParams.digT2 =
