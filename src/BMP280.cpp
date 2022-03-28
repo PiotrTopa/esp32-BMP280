@@ -78,7 +78,6 @@ bool BMP280::softReset()
     ESP_LOGI(TAG, "Device soft reset");
     int8_t result = i2cBus->writeByte(devAddr, BMP280_SOFT_RESET_ADDR, BMP280_SOFT_RESET_CMD);
     /* As per the datasheet, startup time is 2 ms. */
-    printf("DEVICE SoftReset result: %d\n\n", result);
 
     vTaskDelay(2 / portTICK_PERIOD_MS);
     return result;
@@ -98,7 +97,6 @@ bool BMP280::readCalibrationParameters()
 
     if (rslt == BMP280_CALIB_DATA_SIZE)
     {
-        printf("CONFIG %d %d %d %d %d %d %d %d\n\n", temp[0], temp[1], temp[2], temp[3], temp[4], temp[5], temp[6], temp[7]);
         calibrationParams.digT1 =
             (uint16_t)(((uint16_t)temp[BMP280_DIG_T1_MSB_POS] << 8) | ((uint16_t)temp[BMP280_DIG_T1_LSB_POS]));
         calibrationParams.digT2 =
